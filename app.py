@@ -14,6 +14,17 @@ from document import Document_
 from chat import Chatbot_
 from exceptions import PineconeIndexNameError, PineconeUnexceptedException
 
+#*logging
+import logging
+log_file_path = "api_requests.log"
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+file_handler = logging.FileHandler(log_file_path)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+logger.addHandler(file_handler)
+
 # .env 파일 로드
 load_dotenv()
 
@@ -65,6 +76,7 @@ class Summary(Resource):
                     "message": "쿼리를 입력해주세요."
                 })
 
+            logger.info(f"query: {query}")
             summary = llm.summary(query)
 
             return jsonify({
