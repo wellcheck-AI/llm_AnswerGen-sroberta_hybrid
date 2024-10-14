@@ -16,12 +16,21 @@ from exceptions import PineconeIndexNameError, PineconeUnexceptedException
 
 #*logging
 import logging
+from datetime import datetime, timezone, timedelta
 log_file_path = "api_requests.log"
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 file_handler = logging.FileHandler(log_file_path)
 file_handler.setLevel(logging.INFO)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+#formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+class SeoulFormatter(logging.Formatter):
+    def converter(self, timestamp):
+        kst = timezone(timedelta(hours=9))
+        dt = datetime.fromtimestamp(timestamp, tz=kst)
+        return dt.timetuple()
+
+formatter = SeoulFormatter('%(asctime)s - %(levelname)s - %(message)s')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
