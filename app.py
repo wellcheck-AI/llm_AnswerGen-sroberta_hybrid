@@ -200,6 +200,7 @@ class Answer(Resource):
                     "message": "쿼리를 입력해주세요."
                 })
             
+            reference_list = [r["text"] for r in reference_list if "text" in r]
             context = document.context_to_string(reference_list, query)
 
             if context:
