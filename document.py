@@ -87,7 +87,7 @@ class Document_:
                 include_metadata=True
             )
 
-            threshold = 0.4
+            threshold = 0.3
 
         result.matches.sort(key=lambda x: x.score, reverse=True)
 
