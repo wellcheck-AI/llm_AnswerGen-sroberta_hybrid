@@ -1,13 +1,14 @@
 #!d/usr/bin/python3 -u
 import os
 import json
+import traceback
 
 import openai
 import pinecone
 
 from dotenv import load_dotenv
 from flask_cors import CORS
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, make_response
 from flask_restx import Api, Resource, fields
 
 from document import Document_
@@ -80,10 +81,11 @@ class Summary(Resource):
             query = data['query']
 
             if not query.strip():
-                return jsonify({
+                return make_response(jsonify({
                     "status_code": 405,
-                    "message": "쿼리를 입력해주세요."
-                })
+                    "message": "쿼리를 입력해주세요.",
+                    "error": "ValueError: Empty query"
+                    }), 405)
 
             logger.info(f"query: {query}")
             summary = llm.summary(query)
@@ -98,18 +100,19 @@ class Summary(Resource):
             })
 
         except openai.APIError as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 403,
-                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
+                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": "OpenaiApiKeyError: Invalid OpenAI API Key"
+                }), 403)
         
         except Exception as e:
-            print(e)
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 500,
-                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
-
+                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": f"UnexpectedError: {traceback.format_exc()}"
+                }), 403)
+        
 @ns_reference.route('/')
 class Reference(Resource):
     @api.expect(reference_model)
@@ -124,22 +127,23 @@ class Reference(Resource):
             query = data['query']
 
             if not query.strip():
-                return jsonify({
+                return make_response(jsonify({
                     "status_code": 405,
-                    "message": "쿼리를 입력해주세요."
-                })
+                    "message": "쿼리를 입력해주세요.",
+                    "error": "ValueError: Empty query"
+                    }), 405)
             
             context = document.find_match(query)
 
             if not all(list(zip(*context))[0]):
-                return jsonify({
+                return make_response(jsonify({
                     "status_code": 204,
-                    "data": [
+                    "date": [
                         {
                             "reference": []
                         }
                     ]
-                })
+                }), 204)
 
             reference = {"reference": []} 
             for c in context:
@@ -158,36 +162,39 @@ class Reference(Resource):
             })
 
         except openai.APIError as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": "OpenaiApiKeyError: Invalid OpenAI API Key"
+                }), 403)
         
         except pinecone.exceptions.PineconeApiException as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": "PineconeApiKeyError: Invalid Pinecone API Key"
+                }), 403)
         
         except PineconeIndexNameError as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": "PineconeIndexNameError: Pinecone index does not exist"
+                }), 403)
         
         except PineconeUnexceptedException as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 500,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
-
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": e
+                }), 500)
+        
         except Exception as e:
-            
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 500,
-                "message": f"현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": str(e)
-            })
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": f"UnexpectedError: {traceback.format_exc()}"
+                }), 500)
 
 # Answer 리소스 클래스 정의
 @ns_answer.route('/')
@@ -204,11 +211,12 @@ class Answer(Resource):
             reference_list = json_data['data'][0]['reference']
 
             if not query.strip():
-                return jsonify({
+                return make_response(jsonify({
                     "status_code": 405,
-                    "message": "쿼리를 입력해주세요."
-                })
-            
+                    "message": "쿼리를 입력해주세요.",
+                    "error": "ValueError: Empty query"
+                    }), 405)
+
             context = document.context_to_string(reference_list, query)
 
             if context:
@@ -227,16 +235,18 @@ class Answer(Resource):
             })
 
         except openai.APIError as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 403,
-                "message": "현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요."
-            })
+                "message": "현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": "OpenaiApiKeyError: Invalid OpenAI API Key"
+                }), 403)
 
         except Exception as e:
-            return jsonify({
+            return make_response(jsonify({
                 "status_code": 500,
-                "message": f"현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.\n{e}"
-            })
+                "message": "현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": f"UnexpectedError: {traceback.format_exc()}"
+                }), 500)
 
 
 if __name__ == '__main__':

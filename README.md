@@ -7,6 +7,10 @@ Langchain과 LLM(openai API)로 연관 가이드를 연결하고, 이를 통해 
 * 연관 가이드 추천: 질문과 연관된 가이드를 랭킹하여 제공합니다.
 * LLM 기반 답변 생성: LLM 및 Langchain을 사용하여 답변을 생성하고 추천합니다.
 
+## Issue  
+- [ ] 플랫폼 고도화 시 백엔드 수준에서 HTTP 응답 상태 핸들링 로직 변경
+- [ ] 플랫폼 고도화 시 API 수준에서 응답 본문 내 `status_code` 필드 삭제
+
 ## API 명세
 ### Input format
 ```
@@ -179,6 +183,12 @@ cp text.py <env_path>/site-packages/sklearn/feature_extraction/text.py
 - 이 단계는 `requirements.txt`가 모두 설치된 후 진행되어야 합니다.
 
 ## 변경사항
+2024-10-16
+1. 응답 본문(body)에 `status_code` 필드를 포함시켜 상태를 전달하던 방식에서, 실제 HTTP 응답 자체의 상태 코드를 사용하여 상태를 전달하는 방식으로 변경 
+
+2024-10-15
+1. 입력 쿼리에 대한 로깅 기능 추가
+
 2024-10-02
 1. 검색 API 변경
     - 임베딩 모델: SRoBERTa
