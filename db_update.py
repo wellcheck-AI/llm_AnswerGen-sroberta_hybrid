@@ -116,10 +116,16 @@ def build(index:Pinecone.Index) -> Tuple[AutoModel, AutoTokenizer, TfidfVectoriz
     else:
         data = pd.read_excel(file_path)
         
-    data.fillna({"답변": ""}, inplace=True)
-    data = data[data["답변"] != ""]
+    # 결측값을 기본값으로 채우기
+    data.fillna({"answer": "", "keyword": "", "imageUrl": ""}, inplace=True)
+    # 'answer'가 빈 문자열이 아닌 데이터만 필터링
+    data = data[data["answer"] != ""]
 
-    docs = data["답변"].values.tolist()
+    # 각 데이터 추출
+    guide_ids = data["coachAnswerGuideId"].tolist()
+    keywords = data["keyword"].tolist()
+    docs = data["answer"].tolist()
+    image_urls = data["imageUrl"].tolist()
 
     model_path = "jhgan/ko-sroberta-multitask"
     model = AutoModel.from_pretrained(model_path)
@@ -128,39 +134,49 @@ def build(index:Pinecone.Index) -> Tuple[AutoModel, AutoTokenizer, TfidfVectoriz
     vectorizer = TfidfVectorizer(tokenizer="korean")
     vectorizer.fit(docs)
 
-    save_params_path = os.path.join(os.path.dirname(__file__), "config", "params", "tfidf_params.pkl")
+    save_params_path = os.path.join(
+        os.path.dirname(__file__), "config", "params", "tfidf_params.pkl"
+    )
     pk.dump(vectorizer, open(save_params_path, "wb"))
 
-    category_col = data.columns.tolist()[1]
+    # category_col = data.columns.tolist()[1]
 
     for idx in tqdm(range(len(data)), total=len(data)):
-        doc_id = data.iloc[idx]["번호"]
-        keywords = [keyword.strip() for keyword in data.iloc[idx]["키워드"].split("#") if keyword.strip()]
-        category = data.iloc[idx][category_col]
-        content = data.iloc[idx]["답변"]
+        doc_id = guide_ids[idx]
+        keyword = [
+            keyword.strip() for keyword in keywords[idx].split("#") if keyword.strip()
+        ]
+        # category = data.iloc[idx][category_col]
+        content = docs[idx]
+        image_url = image_urls[idx]
 
         metadata = {
             "text": content,
-            "category": category,
-            "keywords": keywords
+            # "category": category,
+            "keywords": keyword,
+            "url": image_url,
         }
 
         embed_docs = get_document_embedding(document=content, model=model, tok=tok)
-        sparse_vector_indices, sparse_vector_values = tfidf_sparse_vector(content, vectorizer)
+        sparse_vector_indices, sparse_vector_values = tfidf_sparse_vector(
+            content, vectorizer
+        )
         sparse_vector = {
             "indices": sparse_vector_indices,
-            "values": sparse_vector_values
+            "values": sparse_vector_values,
         }
 
         index.upsert(
-            vectors=[{
-                "id": str(doc_id),
-                "values": embed_docs,
-                "sparse_values": sparse_vector,
-                "metadata": metadata
-            }]
+            vectors=[
+                {
+                    "id": str(doc_id),
+                    "values": embed_docs,
+                    "sparse_values": sparse_vector,
+                    "metadata": metadata,
+                }
+            ]
         )
-    
+
     return model, tok, vectorizer
 
 def search_test(
