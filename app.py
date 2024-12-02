@@ -21,4 +21,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(coach_assistant_router, prefix="/api/gen", tags=["Chatbot API"])
+app.include_router(coach_assistant_router, tags=["Chatbot API"])
