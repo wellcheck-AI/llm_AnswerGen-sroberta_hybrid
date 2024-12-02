@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
 from routers.coach_assistant import router as coach_assistant_router
+from routers.meal_record import router as meal_record_router
 from logger_setup import setup_logger
 
 app = FastAPI(
@@ -22,3 +24,4 @@ app.add_middleware(
 )
 
 app.include_router(coach_assistant_router, tags=["Chatbot API"])
+app.include_router(meal_record_router, tags=["Generate nutritions API"])
