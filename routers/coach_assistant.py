@@ -9,9 +9,12 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from typing import List, Dict
 
-from document import Document_
-from chat import Chatbot_
-from exceptions import PineconeIndexNameError, PineconeUnexceptedException
+from CoachAssistant import (
+    Document_,
+    Chatbot_,
+    PineconeIndexNameError,
+    PineconeUnexceptedException
+)
 from logger_setup import setup_logger
 
 logger = setup_logger("coach_assistant_logger", "coach_assistant.log")
@@ -37,7 +40,7 @@ class ReferenceData(BaseModel):
 
 class AnswerRequest(BaseModel):
     query: str
-    data: List[Dict[str, List[ReferenceData]]]
+    data: List[dict]
 
 
 @router.post("/summary/", response_model=dict)
@@ -60,7 +63,10 @@ async def summarize(request:SummaryRequest):
         
         summary = llm.summary(query)
 
-        return { "data": [ { "summary": summary } ] }
+        return {
+            "status_code": 200, 
+            "data": [ { "summary": summary } ] 
+        }
     
     except openai.APIError as e:
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
@@ -115,7 +121,10 @@ async def reference(request:ReferenceRequest):
                 "text": c[2],
             })
 
-        return { "data": [ reference ] }
+        return { 
+            "status_code": 200,    
+            "data": [ reference ]
+        }
 
     except openai.APIError as e:
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
@@ -189,6 +198,7 @@ async def answer(request: AnswerRequest):
                 }
             )
         
+        # reference_list = [str(ref) for ref in reference_list]
         context = document.context_to_string(reference_list, query)
 
         if not context:
@@ -196,7 +206,10 @@ async def answer(request: AnswerRequest):
         
         answer = llm.getConversation_prompttemplate(query=query, reference=context)
 
-        return { "data": [ { "answer": answer } ] }
+        return { 
+            "status_code": 200,
+            "data": [ { "answer": answer } ] 
+        }
 
     except openai.APIError as e:
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")

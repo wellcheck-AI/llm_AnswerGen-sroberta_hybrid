@@ -11,7 +11,7 @@ from konlpy.tag import Mecab
 from transformers import AutoTokenizer, AutoModel
 from sklearn.preprocessing import normalize
 
-from utils import query_refiner
+from CoachAssistant.utils import query_refiner
 
 
 load_dotenv()

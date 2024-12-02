@@ -23,7 +23,7 @@ import numpy as np
 import scipy.sparse as sp
 
 from ..base import BaseEstimator, OneToOneFeatureMixin, TransformerMixin, _fit_context
-from ..exceptions import NotFittedError
+from .exceptions import NotFittedError
 from ..preprocessing import normalize
 from ..utils._param_validation import HasMethods, Interval, RealNotInt, StrOptions
 from ..utils.fixes import _IS_32BIT
