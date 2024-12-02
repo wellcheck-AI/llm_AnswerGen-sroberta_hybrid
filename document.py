@@ -57,12 +57,12 @@ class Document_:
         }
 
     def context_to_string(self, contexts, query):
-            context = '\n'.join(contexts)
-            if len(context) > 2000:
-                context = context[:2000]
-            if (len(context + query)) > 2500:
-                context = context[:2500 - len(query)]
-            return context
+        context = '\n'.join(contexts)
+        if len(context) > 2000:
+            context = context[:2000]
+        if (len(context + query)) > 2500:
+            context = context[:2500 - len(query)]
+        return context
 
     def query_refine(self, query):
         return query_refiner(query)
