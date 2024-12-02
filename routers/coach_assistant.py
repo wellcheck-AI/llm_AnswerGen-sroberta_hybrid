@@ -5,9 +5,9 @@ import openai
 import pinecone
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import Response
 from pydantic import BaseModel
-from typing import List, Dict
+from typing import List
 
 from CoachAssistant import (
     Document_,
