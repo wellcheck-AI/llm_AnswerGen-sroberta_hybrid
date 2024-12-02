@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 import os
 import re
+
 from dotenv import load_dotenv
 from openai import OpenAI as summaryai
 from langchain_openai import ChatOpenAI
 from langchain.schema import SystemMessage, HumanMessage
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.env'))
 
 class Chatbot_:
     def __init__(self):
