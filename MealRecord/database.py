@@ -2,9 +2,6 @@ import os
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-from dotenv import load_dotenv
-
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.env'))
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 DATABASE_SCHEMA = os.getenv('DATABASE_SCHEMA', 'meal')

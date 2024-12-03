@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 # .env 파일 로드
-load_dotenv()
+# load_dotenv()
 
 # OpenAI 초기화
 client = OpenAI()

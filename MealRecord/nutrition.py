@@ -3,12 +3,9 @@ import re
 import json
 
 from openai import OpenAI
-from dotenv import load_dotenv
 
 from MealRecord import MealRecordError
 from .models import FoodNutrition
-
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.env'))
 
 client = OpenAI()
 

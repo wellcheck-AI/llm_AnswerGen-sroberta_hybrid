@@ -5,7 +5,6 @@ import yaml
 import pickle as pk
 
 from pinecone import Pinecone
-from dotenv import load_dotenv
 from typing import List, Tuple
 from konlpy.tag import Mecab
 from transformers import AutoTokenizer, AutoModel
@@ -13,7 +12,6 @@ from sklearn.preprocessing import normalize
 
 from CoachAssistant.utils import query_refiner
 
-load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.env'))
 with open(os.path.join(os.path.dirname(__file__), "config", 'conf.yaml')) as f:
     config = yaml.full_load(f)
 

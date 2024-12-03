@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+
+load_dotenv()
 
 from routers.coach_assistant import router as coach_assistant_router
 from routers.meal_record import router as meal_record_router

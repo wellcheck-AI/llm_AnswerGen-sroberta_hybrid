@@ -6,14 +6,12 @@ import pandas as pd
 import pickle as pk
 
 from tqdm import tqdm
-from dotenv import load_dotenv
 from pinecone import Pinecone, ServerlessSpec
 from typing import Literal, List, Tuple
 from transformers import AutoTokenizer, AutoModel
 from sklearn.preprocessing import normalize
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-load_dotenv()
 with open(os.path.join(os.path.dirname(__file__), "config", 'conf.yaml')) as f:
     config = yaml.full_load(f)
 
