@@ -6,7 +6,7 @@ load_dotenv()
 
 from routers.coach_assistant import router as coach_assistant_router
 from routers.meal_record import router as meal_record_router
-from logger_setup import setup_logger
+from utils.logger_setup import setup_logger
 
 app = FastAPI(
     title="Coach Assistant Chatbot API",
