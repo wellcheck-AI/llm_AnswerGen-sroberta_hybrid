@@ -98,8 +98,9 @@ class Document_:
 
                 keywords = res["metadata"]["keywords"]
                 answer = res["metadata"]["text"]
+                image_url = res["metadata"]["url"]
 
-                r = [reference_id, keywords, answer]
+                r = [reference_id, keywords, answer, image_url]
 
             else:
                 reference_id = None

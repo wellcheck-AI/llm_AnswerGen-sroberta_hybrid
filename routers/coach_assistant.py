@@ -119,6 +119,7 @@ async def reference(request:ReferenceRequest):
                 "index": c[0],
                 "keyword": keywords_with_newline,  
                 "text": c[2],
+                "image_url": c[3]
             })
 
         return { 
