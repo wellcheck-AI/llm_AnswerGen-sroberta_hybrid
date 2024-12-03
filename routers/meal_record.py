@@ -19,8 +19,8 @@ from MealRecord import (
     FoodNutrition,
     MealRecordError
 )
-from logger_setup import setup_logger
-from alert import send_discord_alert
+from utils.logger_setup import setup_logger
+from utils.alert import send_discord_alert
 
 API_KEY = os.environ.get("API_KEY") # service key?
 

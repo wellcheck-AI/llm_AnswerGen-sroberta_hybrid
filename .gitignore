@@ -3,7 +3,12 @@
 
 .DS_Store
 latency.py
+
+#로컬에서만 쓰는파일
 mecab/
+[be]requirements.txt
+testmacab.py
+mecab_install_mac.sh
 
 *.log
 *.env
