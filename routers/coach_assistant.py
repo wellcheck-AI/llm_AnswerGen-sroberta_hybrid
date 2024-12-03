@@ -17,6 +17,7 @@ from CoachAssistant import (
 )
 from utils.logger_setup import setup_logger
 
+
 logger = setup_logger("coach_assistant_logger", "coach_assistant.log")
 
 document = Document_()
