@@ -1,9 +1,10 @@
+import os
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
-import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, '.env'))
 
 DATABASE_URL = os.getenv('DATABASE_URL')
 DATABASE_SCHEMA = os.getenv('DATABASE_SCHEMA', 'meal')
@@ -20,3 +21,10 @@ def set_search_path(dbapi_connection, connection_record):
     dbapi_connection.autocommit = existing_autocommit
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

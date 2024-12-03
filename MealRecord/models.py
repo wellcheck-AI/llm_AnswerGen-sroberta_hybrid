@@ -1,9 +1,12 @@
 import os
-from sqlalchemy import Column, Integer, String, DateTime, Float, UniqueConstraint
 import datetime
+
 import pytz
-from .db import DATABASE_SCHEMA
+
+from sqlalchemy import Column, Integer, String, DateTime, Float, UniqueConstraint
 from sqlalchemy.orm import declarative_base
+
+from MealRecord import DATABASE_SCHEMA
 
 Base = declarative_base()
 
@@ -33,3 +36,19 @@ class FoodNutrition(Base):
     call_count = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(kst))
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.datetime.now(kst), onupdate=lambda: datetime.datetime.now(kst))
+
+    def json(self) -> dict:
+        return {
+            "foodName": self.food_name,
+            "quantity": self.quantity,
+            "unit": self.unit,
+            "serving_size": self.serving_size,
+            "nutrition": {
+                "carbohydrate": self.carbohydrate,
+                "sugar": self.sugar,
+                "dietaryFiber": self.dietary_fiber,
+                "protein": self.protein,
+                "fat": self.fat,
+                "starch": self.starch
+            }
+        }

@@ -24,4 +24,4 @@ app.add_middleware(
 )
 
 app.include_router(coach_assistant_router, tags=["Chatbot API"])
-app.include_router(meal_record_router, tags=["Generate nutritions API"])
+app.include_router(meal_record_router, prefix="/api/gen", tags=["Generate nutritions API"])
