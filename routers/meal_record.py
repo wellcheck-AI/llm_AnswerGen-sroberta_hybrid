@@ -215,14 +215,14 @@ async def handle_openai_error(e):
             'message': '영양 성분 계산에 실패했습니다',
         })
     elif status_code in [401, 403]:
-        await send_discord_alert(str(e))
+        send_discord_alert(str(e))
         logger.error('Authentication failed', exc_info=e)
         raise HTTPException(status_code=500, detail={
             'code': 500,
             'message': '영양 성분 계산에 실패했습니다',
         })
     elif status_code == 429:
-        await send_discord_alert(str(e))
+        send_discord_alert(str(e))
         logger.error('Token quota exceeded', exc_info=e)
         if error_type == 'tokens':
             raise HTTPException(status_code=503, detail={
@@ -236,7 +236,7 @@ async def handle_openai_error(e):
             'message': '현재 영양성분 분석이 불가능합니다.',
             })
     elif status_code >= 500:
-        await send_discord_alert(str(e))
+        send_discord_alert(str(e))
         logger.error('>= 500 timeout', exc_info=e)
         raise HTTPException(status_code=503, detail={
             'code': 503,

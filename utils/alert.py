@@ -34,3 +34,28 @@ def send_discord_alert(error):
         #     'originalError': str(error)
         # })
         print(err)
+
+def send_discord_alert_pinecone(error):
+    webhook_url = os.getenv('DISCORD_WEBHOOK_URL')
+    print('Webhook URL:', 'exists' if webhook_url else 'missing')
+    
+    if not webhook_url:
+        return
+
+    try:
+        error_message = ''
+        error_status = ''
+        
+        if hasattr(error, 'response') and error.response is not None:
+            error_status = getattr(error.response, 'status', '')
+            error_data = getattr(error.response, 'data', {})
+            error_message = error_data.get('error', {}).get('message', '') or str(error)
+        else:
+            error_message = str(error)
+        
+        content = f"🚨 pinecone 오류 발생\n상태코드: {error_status}\n```\n{error_message}\n```"
+        
+        response = requests.post(webhook_url, json={'content': content})
+        response.raise_for_status()
+    except Exception as err:
+        print(err)

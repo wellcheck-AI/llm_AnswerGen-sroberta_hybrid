@@ -16,7 +16,7 @@ from CoachAssistant import (
     PineconeUnexceptedException
 )
 from utils.logger_setup import setup_logger
-
+from utils.alert import send_discord_alert, send_discord_alert_pinecone
 
 logger = setup_logger("coach_assistant_logger", "coach_assistant.log")
 
@@ -129,6 +129,7 @@ async def reference(request:ReferenceRequest):
         }
 
     except openai.APIError as e:
+        send_discord_alert(str(e))
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
         raise HTTPException(
             status_code=403,
@@ -140,6 +141,7 @@ async def reference(request:ReferenceRequest):
         )
     
     except pinecone.exceptions.PineconeApiException as e:
+        send_discord_alert_pinecone(str(e))
         logger.error(f"PineconeApiKeyError: Invalid Pinecone API Key: {os.environ.get('PINECONE_API_KEY')}")
         raise HTTPException(
             status_code=403,
@@ -151,6 +153,7 @@ async def reference(request:ReferenceRequest):
         )
 
     except PineconeIndexNameError as e:
+        send_discord_alert_pinecone(str(e))
         logger.error(f"PineconeIndexNameError: Pinecone index does not exist.")
         raise HTTPException(
             status_code=403,
@@ -162,6 +165,7 @@ async def reference(request:ReferenceRequest):
         )
     
     except PineconeUnexceptedException as e:
+        send_discord_alert_pinecone(str(e))
         logger.error(f"PineconeUnexpectedError: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
