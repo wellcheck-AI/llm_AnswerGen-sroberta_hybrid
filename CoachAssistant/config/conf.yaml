@@ -1,4 +1,4 @@
 pinecone:
-  index_name: prod-search-sroberta-a
+  index_name: prod-search-sroberta
 embedding_model:
   model_path: jhgan/ko-sroberta-multitask
