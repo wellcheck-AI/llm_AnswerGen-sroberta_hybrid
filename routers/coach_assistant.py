@@ -43,7 +43,6 @@ class AnswerRequest(BaseModel):
     query: str
     data: List[dict]
 
-
 @router.post("/summary/", response_model=dict)
 async def summarize(request:SummaryRequest):
     try:
@@ -204,7 +203,7 @@ async def answer(request: AnswerRequest):
                 }
             )
         
-        # reference_list = [str(ref) for ref in reference_list]
+        #reference_list = [ref["reference"] for ref in reference_list]
         context = document.context_to_string(reference_list, query)
 
         if not context:

@@ -22,7 +22,7 @@ from MealRecord import (
 from utils.logger_setup import setup_logger
 from utils.alert import send_discord_alert
 
-API_KEY = os.environ.get("API_KEY") # service key?
+API_KEY = os.environ.get("API_KEY") #API service key
 
 logger = setup_logger("meal_record_logger", "meal_record.log")
 

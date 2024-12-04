@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from prometheus_fastapi_instrumentator import Instrumentator
 
-load_dotenv()
+load_dotenv(override=True)
+
 
 from routers.coach_assistant import router as coach_assistant_router
 from routers.meal_record import router as meal_record_router
@@ -26,5 +28,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(coach_assistant_router, tags=["Chatbot API"])
+app.include_router(coach_assistant_router, prefix="/api/coach", tags=["Chatbot API"])
 app.include_router(meal_record_router, prefix="/api/gen", tags=["Generate nutritions API"])
+
+Instrumentator().instrument(app).expose(app)
