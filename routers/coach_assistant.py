@@ -237,3 +237,55 @@ async def answer(request: AnswerRequest):
                 "error": f"UnexpectedError in /answer: {e}"
             }
         )
+
+@router.post("/answer_dev/")
+async def answer(request: AnswerRequest):
+    try:
+        query = request.query
+        reference_list = request.data[0]["reference"]
+        
+        if not query.strip():
+            logger.warning("Empty query received in /reference")
+            raise HTTPException(
+                status_code=405,
+                detail={
+                    "status_code": 405,
+                    "error": "ValueError: Empty query",
+                    "message": "쿼리를 입력해주세요."
+                }
+            )
+        
+        # reference_list = [str(ref) for ref in reference_list]
+        context = document.context_to_string(reference_list, query)
+
+        if not context:
+            context = ["참고문서는 없으니 너가 아는 정보로 대답해줘."]
+        
+        answer = llm.getConversation_prompttemplate(query=query, reference=context)
+
+        return { 
+            "status_code": 200,
+            "data": [ { "answer": answer } ] 
+        }
+
+    except openai.APIError as e:
+        logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "status_code": 403,
+                "message": "현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}"
+            }
+        )
+    
+    except Exception as e:
+        logger.error(f"UnexpectedError in /answer: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "status_code": 500,
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+                "error": f"UnexpectedError in /answer: {e}"
+            }
+        )

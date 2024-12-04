@@ -10,6 +10,9 @@ mecab/
 testmacab.py
 mecab_install_mac.sh
 
+#server
+nohup.out
+
 *.log
 *.env
 *.ssh
