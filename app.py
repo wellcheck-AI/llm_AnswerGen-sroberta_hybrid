@@ -29,5 +29,5 @@ app.add_middleware(
 app.include_router(coach_assistant_router, prefix="/api/coach", tags=["Chatbot API"])
 app.include_router(meal_record_router, prefix="/api/gen", tags=["Generate nutritions API"])
 
-# from prometheus_fastapi_instrumentator import Instrumentator
-# Instrumentator().instrument(app).expose(app)
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
