@@ -8,9 +8,8 @@ import pytz
 import openai
 
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from MealRecord import (
@@ -28,41 +27,33 @@ logger = setup_logger("meal_record_logger", "meal_record.log")
 
 router = APIRouter()
 
-class GenNutritionRequest(BaseModel):
-    foodName: str
-    quantity: float
-    unit: int
-
-    def json(self):
-        return {
-            "food_name": self.foodName,
-            "quantity": self.quantity,
-            "unit": self.unit
-        }
-
 @router.post("/nutrition")
 async def nutrition(
-        request: GenNutritionRequest, 
-        provided_api_key: Optional[str] = Header(None, alias="x-api-key"), 
-        content_type: Optional[str] = Header(None, alias="Content-Type"), 
+        request: Request, 
         db: Session = Depends(get_db)
     ):
     try:
+        headers = request.headers
+        provided_api_key = headers.get("x-api-key")
+
         if not provided_api_key or provided_api_key != API_KEY:
             raise MealRecordError.InvalidAPIKeyError(provided_api_key=provided_api_key)
         
-        data = request.json()
+        raw_body = await request.body()
+        body_str = raw_body.decode()
 
-        food_name = data["food_name"]
-        quantity = data["quantity"]
-        unit = data["unit"]
-        
-        logger.info('API Request received', extra=data)
+        body = json.loads(body_str)
+
+        food_name = body.get("foodName")
+        quantity = body.get("quantity", -1)
+        unit = body.get("unit", -1)
+
+        logger.info('API Request received', extra={"food_name": food_name, "quantity": quantity, "unit": unit})
 
         if not food_name.strip():
             raise MealRecordError.InvalidInputError(
                 message='Missing or empty food name', 
-                extra={"body": data}, 
+                extra={"body": body}, 
                 inform_msg="음식명이 없습니다"
             )
         
