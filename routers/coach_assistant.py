@@ -13,7 +13,8 @@ from CoachAssistant import (
     Document_,
     Chatbot_,
     PineconeIndexNameError,
-    PineconeUnexceptedException
+    PineconeUnexceptedException,
+    InvalidInputError
 )
 from utils.logger_setup import setup_logger
 from utils.alert import send_discord_alert, send_discord_alert_pinecone
@@ -49,15 +50,7 @@ async def summarize(request:SummaryRequest):
         query = request.query
         
         if not query.strip():
-            logger.warning("Empty query received in /summary")
-            raise HTTPException(
-                status_code=405,
-                detail={
-                    "status_code": 405,
-                    "error": "ValueError: Empty query",
-                    "message": "쿼리를 입력해주세요."
-                }
-            )
+            raise InvalidInputError(message="Empty query received in /summary")
         
         logger.info(f"Summary | Input Query | {query}")
         
@@ -67,6 +60,17 @@ async def summarize(request:SummaryRequest):
             "status_code": 200, 
             "data": [ { "summary": summary } ] 
         }
+    
+    except InvalidInputError as e:
+        logger.warning(str(e))
+        raise HTTPException(
+            status_code=405,
+            detail={
+                "status_code": 405,
+                "error": "ValueError: Empty query",
+                "message": "쿼리를 입력해주세요."
+            }
+        )
     
     except openai.APIError as e:
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
@@ -96,15 +100,7 @@ async def reference(request:ReferenceRequest):
         query = request.query
         
         if not query.strip():
-            logger.warning("Empty query received in /reference")
-            raise HTTPException(
-                status_code=405,
-                detail={
-                    "status_code": 405,
-                    "error": "ValueError: Empty query",
-                    "message": "쿼리를 입력해주세요."
-                }
-            )
+            raise InvalidInputError(message="Empty query received in /reference")
         
         context = document.find_match(query)
 
@@ -126,6 +122,17 @@ async def reference(request:ReferenceRequest):
             "status_code": 200,    
             "data": [ reference ]
         }
+    
+    except InvalidInputError as e:
+        logger.warning(str(e))
+        raise HTTPException(
+            status_code=405,
+            detail={
+                "status_code": 405,
+                "error": "ValueError: Empty query",
+                "message": "쿼리를 입력해주세요."
+            }
+        )
 
     except openai.APIError as e:
         send_discord_alert(str(e))
@@ -193,15 +200,7 @@ async def answer(request: AnswerRequest):
         reference_list = request.data[0]["reference"]
         
         if not query.strip():
-            logger.warning("Empty query received in /reference")
-            raise HTTPException(
-                status_code=405,
-                detail={
-                    "status_code": 405,
-                    "error": "ValueError: Empty query",
-                    "message": "쿼리를 입력해주세요."
-                }
-            )
+            raise InvalidInputError("Empty query received in /reference")
         
         #reference_list = [ref["reference"] for ref in reference_list]
         context = document.context_to_string(reference_list, query)
@@ -215,6 +214,17 @@ async def answer(request: AnswerRequest):
             "status_code": 200,
             "data": [ { "answer": answer } ] 
         }
+    
+    except InvalidInputError as e:
+        logger.warning(str(e))
+        raise HTTPException(
+            status_code=405,
+            detail={
+                "status_code": 405,
+                "error": "ValueError: Empty query",
+                "message": "쿼리를 입력해주세요."
+            }
+        )
 
     except openai.APIError as e:
         logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
