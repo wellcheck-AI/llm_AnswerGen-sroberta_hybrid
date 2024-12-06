@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from MealRecord import (
     generate_nutrition,
+    async_generate_nutrition,
     get_db,
     FoodNutrition,
     MealRecordError
@@ -124,7 +125,8 @@ async def nutrition(
             }
             return JSONResponse(status_code=200, content=response_data)
         
-        new_record = generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
+        # new_record = generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
+        new_record = await async_generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
 
         db.add(new_record)
         db.commit()
