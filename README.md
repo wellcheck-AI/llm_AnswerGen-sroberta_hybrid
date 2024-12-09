@@ -7,6 +7,8 @@ API 서버 실행을 위한 환경 세팅 혹은 자세한 사용 방법은 각 
 #### 터미널 (Remote Server)
 ```shell
 nohup uvicorn app:app --host 0.0.0.0 --port 5000 
+
+nohup gunicorn app:app --workers 9 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:5000 --timeout 200 --keep-alive 5 --graceful-timeout 100 --max-requests 1000 --max-requests-jitter 100
 ```
 - 현재 서버 버전: Ubuntu 24.04, Python 3.10.X
 

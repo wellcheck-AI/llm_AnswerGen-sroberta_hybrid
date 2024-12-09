@@ -6,7 +6,14 @@ from sqlalchemy.orm import sessionmaker
 DATABASE_URL = os.getenv('DATABASE_URL')
 DATABASE_SCHEMA = os.getenv('DATABASE_SCHEMA', 'meal')
 
-engine = create_engine(DATABASE_URL)
+#engine = create_engine(DATABASE_URL)
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,           
+    max_overflow=20,        
+    pool_timeout=30,         
+    pool_recycle=1800
+)
 
 @event.listens_for(engine, 'connect')
 def set_search_path(dbapi_connection, connection_record):
