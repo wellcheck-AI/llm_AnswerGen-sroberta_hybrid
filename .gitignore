@@ -1,6 +1,11 @@
 # Created by https://www.toptal.com/developers/gitignore/api/flask
 # Edit at https://www.toptal.com/developers/gitignore?templates=flask
 
+.gitignore
+test*.py
+tmp.py
+utils/utils_logs/
+
 .DS_Store
 latency.py
 
