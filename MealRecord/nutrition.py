@@ -127,7 +127,9 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
         ]
     }
 
-    async with httpx.AsyncClient() as client:
+    timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
+    
+    async with httpx.AsyncClient(timeout=timeout) as client:
         response = await client.post(url, json=payload, headers=headers)
 
     response = response.json()["choices"][0]["message"]["content"]

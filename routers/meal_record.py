@@ -10,7 +10,8 @@ import openai
 from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from MealRecord import (
     generate_nutrition,
@@ -31,7 +32,8 @@ router = APIRouter()
 @router.post("/nutrition")
 async def nutrition(
         request: Request, 
-        db: Session = Depends(get_db)
+        #db: Session = Depends(get_db)
+        db: AsyncSession = Depends(get_db)
     ):
     try:
         headers = request.headers
@@ -86,16 +88,25 @@ async def nutrition(
                 inform_msg="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)"
             )
 
-        existing_record = db.query(FoodNutrition).filter(
-            FoodNutrition.food_name == food_name,
-            FoodNutrition.quantity == quantity,
-            FoodNutrition.unit == unit
-        ).first()
+        # existing_record = db.query(FoodNutrition).filter(
+        #     FoodNutrition.food_name == food_name,
+        #     FoodNutrition.quantity == quantity,
+        #     FoodNutrition.unit == unit
+        # ).first()
+
+        existing_record_result = await db.execute(
+            select(FoodNutrition).where(
+                FoodNutrition.food_name == food_name,
+                FoodNutrition.quantity == quantity,
+                FoodNutrition.unit == unit
+            )
+        )
+        existing_record = existing_record_result.scalar()
 
         if existing_record:
             existing_record.call_count += 1
             existing_record.updated_at = datetime.now(pytz.timezone('Asia/Seoul'))
-            db.commit()
+            await db.commit()
 
             logger.info('Returning cached nutrition data', extra={
                 'foodName': food_name,
@@ -129,7 +140,7 @@ async def nutrition(
         new_record = await async_generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
 
         db.add(new_record)
-        db.commit()
+        await db.commit()
 
         logger.info('Nutrition data saved to database', extra=new_record.json())
         
