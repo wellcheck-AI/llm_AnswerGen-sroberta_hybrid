@@ -52,7 +52,7 @@ async def summarize(request:SummaryRequest):
         if not query.strip():
             raise InvalidInputError(message="Empty query received in /summary")
         
-        logger.info(f"Summary | Input Query | {query}")
+        logger.info(f"API Request received - query: {query}")
         
         summary = llm.summary(query)
 
