@@ -4,6 +4,7 @@ import json
 
 import httpx
 import asyncio
+import pandas as pd
 
 from openai import OpenAI
 
@@ -64,7 +65,7 @@ def generate_nutrition(food_name:str, unit:int, quantity:int | float) -> FoodNut
         ]
     ).choices[0].message.content
 
-    if "None" in response:
+    if "None" in response or "null" in response:
         raise MealRecordError.GenerationFailedError(food_name=food_name)
     
     json_match = re.search(r'{[\s\S]*?}', response)
@@ -103,7 +104,7 @@ def generate_nutrition(food_name:str, unit:int, quantity:int | float) -> FoodNut
         call_count=1
     )
 
-    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float)), 
+    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float)) or pd.isna(x), 
             [carbohydrate, sugar, dietary_fiber, protein, fat, starch])):
         raise MealRecordError.NutritionError(nutrition=generated_data.json())
     
@@ -130,9 +131,9 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
     timeout = httpx.Timeout(60.0, connect=10.0, read=60.0)
     
     async with httpx.AsyncClient(timeout=timeout) as client:
-        response = await client.post(url, json=payload, headers=headers)
+        output = await client.post(url, json=payload, headers=headers)
 
-    response = response.json()["choices"][0]["message"]["content"]
+    response = output.json()["choices"][0]["message"]["content"]
 
     if "None" in response:
         raise MealRecordError.GenerationFailedError(food_name=food_name)
@@ -141,7 +142,11 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
     if not json_match:
         raise MealRecordError.ResponseParsingError(raw_response=response)
 
-    nutrition_data = json.loads(json_match.group())
+    try:
+        remove_annotation = re.sub(r'(//.*|#.*)', "", json_match.group())
+        nutrition_data = json.loads(remove_annotation)
+    except json.JSONDecodeError as e:
+        raise MealRecordError.ResponseParsingError(message=str(e), raw_response=remove_annotation)
 
     def parse_nutrient_value(value):
         if isinstance(value, str):
@@ -173,8 +178,8 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
         call_count=1
     )
 
-    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float)), 
+    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float) or pd.isna(x)), 
             [carbohydrate, sugar, dietary_fiber, protein, fat, starch])):
-        raise MealRecordError.NutritionError(nutrition=generated_data.json())
+        raise MealRecordError.NutritionError(nutrition=generated_data.json(), response=output)
     
     return generated_data
