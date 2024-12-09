@@ -5,7 +5,7 @@ class ResponseParsingError(Exception):
         super().__init__(self.message)
 
     def __str__(self):
-        return f"ResponseParsingError: {self.raw_response}"
+        return f"ResponseParsingError: {self.message}\nRaw Data: {self.raw_response}"
     
 class GenerationFailedError(Exception):
     def __init__(self, message:str="AI unable to calculate nutrition", food_name:str=""):
@@ -17,13 +17,17 @@ class GenerationFailedError(Exception):
         return f"GenerationFailed: {self.message}(Input: {self.food_name})"
     
 class NutritionError(Exception):
-    def __init__(self, message:str="Invalid nutrient values", nutrition:dict=None):
+    def __init__(self, message:str="Invalid nutrient values", nutrition:dict=None, response:str=None):
         self.message = message
         self.nutrition = nutrition
+        self.raw_data = response
         super().__init__(self.message)
 
     def __str__(self):
-        return f"NutritionError: {self.message}"    
+        if self.raw_data:
+            return f"NutritionError: {self.message}\nGPT's output: {self.raw_data}"
+        else:
+            return f"NutritionError: {self.message}"
     
     def metadata(self):
         return self.nutrition
