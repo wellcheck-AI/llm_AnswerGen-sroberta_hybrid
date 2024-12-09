@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import traceback
 
 from datetime import datetime
 
@@ -50,8 +51,6 @@ async def nutrition(
         food_name = body.get("foodName")
         quantity = body.get("quantity", -1)
         unit = body.get("unit", -1)
-
-        logger.info('API Request received', extra={"food_name": food_name, "quantity": quantity, "unit": unit})
 
         if not food_name.strip():
             raise MealRecordError.InvalidInputError(
@@ -145,12 +144,16 @@ async def nutrition(
         logger.info('Nutrition data saved to database', extra=new_record.json())
         
         response_data = new_record.json()
-        return JSONResponse(status_code=201, content=response_data)
+        try:
+            return JSONResponse(status_code=201, content=response_data)
+        except Exception as e:
+            raise MealRecordError.ResponseParsingError(raw_response=response_data)
         
     except openai.OpenAIError as e:
         await handle_openai_error(e)
 
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
+        logger.error(f"{str(e)}\n{body_str}", exc_info=traceback.format_exc())
         raise HTTPException(status_code=400, detail={
             'code': 400,
             'message': '잘못된 JSON 형식입니다'
@@ -198,7 +201,14 @@ async def nutrition(
         )
     
     except MealRecordError.NutritionError as e:
-        logger.error(str(e), extra=e.metadata())
+        logger.error(str(e), extra=e.metadata(), exc_info=traceback.format_exc())
+        raise HTTPException(
+            status_code=510,
+            detail={
+                "code": 510,
+                "message": "AI가 계산하기 어려운 영양성분입니다"
+            }
+        )
 
     except Exception as e:
         logger.error('Unexpected error', exc_info=e)
