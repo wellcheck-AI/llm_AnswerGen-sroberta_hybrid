@@ -179,6 +179,9 @@ cp text.py <env_path>/site-packages/sklearn/feature_extraction/text.py
 - 이 단계는 `requirements.txt`가 모두 설치된 후 진행되어야 합니다.
 
 ## Update logs
+2024-12-11
+1. 로거/예외처리 일반화
+
 2024-12-02
 1. Flask -> FastAPI로 프레임워크 이관
 2. 코드 리팩토링

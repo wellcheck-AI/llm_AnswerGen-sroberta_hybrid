@@ -6,6 +6,8 @@ test*.py
 tmp.py
 utils/utils_logs/
 
+*credentials.json
+
 .DS_Store
 latency.py
 

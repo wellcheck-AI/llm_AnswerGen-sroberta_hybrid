@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import uuid
 import traceback
 
 from datetime import datetime
@@ -16,82 +17,101 @@ from sqlalchemy.future import select
 
 from MealRecord import (
     generate_nutrition,
-    async_generate_nutrition,
     get_db,
-    FoodNutrition,
-    MealRecordError
+    FoodNutrition
 )
-from utils.logger_setup import setup_logger
 from utils.alert import send_discord_alert
+from utils.log_schema import LogSchema, APIException
+from utils.firebase_logger import request_log
 
 API_KEY = os.environ.get("API_KEY") #API service key
 
-logger = setup_logger("meal_record_logger", "meal_record.log")
+LOGGER_NAME = "meal"
 
 router = APIRouter()
 
 @router.post("/nutrition")
 async def nutrition(
         request: Request, 
-        #db: Session = Depends(get_db)
         db: AsyncSession = Depends(get_db)
     ):
     try:
-        headers = request.headers
+        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME)
+
+        headers = dict(request.headers)
+
+        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            ip = request.client.host
+        
+        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
+        method = "POST"
+
         provided_api_key = headers.get("x-api-key")
 
-        if not provided_api_key or provided_api_key != API_KEY:
-            raise MealRecordError.InvalidAPIKeyError(provided_api_key=provided_api_key)
-        
         raw_body = await request.body()
         body_str = raw_body.decode()
 
         body = json.loads(body_str)
 
+        _log_headers = {key:headers[key] for key in ["x-api-key", "content-type"] if key in headers}
+        _log.set_request_log(body, ip, method, _log_headers, request_time)
+
+        if not provided_api_key or provided_api_key != API_KEY:
+            raise APIException(
+                code=400,
+                name="InvalidAPIKeyException",
+                message="API 키가 유효하지 않습니다"
+            )
+        
         food_name = body.get("foodName")
         quantity = body.get("quantity", -1)
         unit = body.get("unit", -1)
-
+        
         if not food_name.strip():
-            raise MealRecordError.InvalidInputError(
-                message='Missing or empty food name', 
-                extra={"body": body}, 
-                inform_msg="음식명이 없습니다"
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="음식명이 없습니다"
             )
         
         food_name_trimmed = food_name.strip()
         special_chars_only = re.compile(r'^[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>/?]+$')
 
         if special_chars_only.match(food_name_trimmed):
-            raise MealRecordError.InvalidInputError(
-                message='Special characters only in food name', 
-                extra={"foodName": food_name_trimmed},
-                inform_msg="올바른 음식명이 아닙니다"
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="올바른 음식명이 아닙니다"
+            )
+        if len(food_name_trimmed) > 255:
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="음식명이 너무 깁니다"
             )
         if not quantity or quantity <= 0 or not isinstance(quantity, (int, float)):
-            raise MealRecordError.InvalidInputError(
-                message="Invalid quantity",
-                extra={"quantity": quantity},
-                inform_msg="섭취량이 없습니다"
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="섭취량이 없습니다"
             )
         if unit is None:
-            raise MealRecordError.InvalidInputError(
-                message="Invalid unit",
-                extra={"unit": unit},
-                inform_msg="섭취량 단위가 없습니다"
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="섭취량 단위가 없습니다"
             )
         if not isinstance(unit, int) or unit < 0 or unit > 4:
-            raise MealRecordError.InvalidInputError(
-                message="Invalid unit",
-                extra={"unit": unit},
-                inform_msg="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)"
+            raise APIException(
+                code=400,
+                name="InvalidInputException",
+                message="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)"
             )
-
-        # existing_record = db.query(FoodNutrition).filter(
-        #     FoodNutrition.food_name == food_name,
-        #     FoodNutrition.quantity == quantity,
-        #     FoodNutrition.unit == unit
-        # ).first()
+        
+        response_content = {}
 
         existing_record_result = await db.execute(
             select(FoodNutrition).where(
@@ -103,11 +123,7 @@ async def nutrition(
         existing_record = existing_record_result.scalar()
 
         if existing_record:
-            existing_record.call_count += 1
-            existing_record.updated_at = datetime.now(pytz.timezone('Asia/Seoul'))
-            await db.commit()
-
-            logger.info('Returning cached nutrition data', extra={
+            response_content = {
                 'foodName': food_name,
                 'quantity': quantity,
                 'unit': unit,
@@ -120,150 +136,118 @@ async def nutrition(
                     'fat': existing_record.fat,
                     'starch': existing_record.starch
                 }
-            })
-            
-            response_data = {
-                'foodName': food_name,
-                'quantity': quantity,
-                'unit': unit,
-                'carbohydrate': existing_record.carbohydrate,
-                'sugar': existing_record.sugar,
-                'dietaryFiber': existing_record.dietary_fiber,
-                'protein': existing_record.protein,
-                'fat': existing_record.fat,
-                'starch': existing_record.starch
             }
+
+            existing_record.call_count += 1
+            
+            timestamp = datetime.now(pytz.timezone('Asia/Seoul'))
+            existing_record.updated_at = timestamp
+            await db.commit()
+            
+            response_data = {key: value for key, value in response_content.items() if key != "nutrition"}
+            response_data.update(response_content.get("nutrition", {}))
+            
+            _log.set_response_log(content=response_content, status_code=200, message="Returning cached nutrition data")
+            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
             return JSONResponse(status_code=200, content=response_data)
         
-        # new_record = generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
-        new_record = await async_generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
+        new_record = await generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
 
         db.add(new_record)
         await db.commit()
 
-        logger.info('Nutrition data saved to database', extra=new_record.json())
+        response_content = new_record.json()
         
-        response_data = new_record.json()
-        try:
-            return JSONResponse(status_code=201, content=response_data)
-        except Exception as e:
-            raise MealRecordError.ResponseParsingError(raw_response=response_data)
+        response_data = {key: value for key, value in response_content.items() if key != "nutrition"}
+        response_data.update(response_content.get("nutrition", {}))
         
+        _log.set_response_log(content=response_content, status_code=201, message="Nutrition data saved to database")
+        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        return JSONResponse(status_code=201, content=response_data)
+    
     except openai.OpenAIError as e:
         await handle_openai_error(e)
-
-    except json.JSONDecodeError as e:
-        logger.error(f"{str(e)}\n{body_str}", exc_info=traceback.format_exc())
-        raise HTTPException(status_code=400, detail={
-            'code': 400,
-            'message': '잘못된 JSON 형식입니다'
-        })
     
-    except MealRecordError.InvalidInputError as e:
-        logger.error(str(e), extra=e.metadata())
+    except APIException as e:
+        e.log(_log)
+        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
-            status_code=400,
+            status_code=e.code,
             detail={
-                "code": 400,
-                "message": e.inform_message()
+                "code": e.code,
+                "message": e.message
             }
         )
     
-    except MealRecordError.InvalidAPIKeyError as e:
-        logger.error(str(e), extra=e.metadata())
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "code": 400,
-                "message": "API 키가 유효하지 않습니다",
-                "error": f"Invalid API KEY: {provided_api_key}"
-            }
-        )
+    except Exception as e:
+        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
         
-    except MealRecordError.GenerationFailedError as e:
-        logger.error(str(e), extra={"foodName": food_name})
-        raise HTTPException(
-            status_code=510,
-            detail={
-                "code": 510,
-                "message": "AI가 계산하기 어려운 영양성분입니다"
-            }
-        )
-    
-    except MealRecordError.ResponseParsingError as e:
-        logger.error(str(e), extra={"foodName": food_name})
+        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
             status_code=500,
             detail={
                 "code": 500,
-                "message": "영양 성분 계산에 실패했습니다"
+                "message": "알 수 없는 오류가 발생했습니다"
             }
         )
     
-    except MealRecordError.NutritionError as e:
-        logger.error(str(e), extra=e.metadata(), exc_info=traceback.format_exc())
-        raise HTTPException(
-            status_code=510,
-            detail={
-                "code": 510,
-                "message": "AI가 계산하기 어려운 영양성분입니다"
-            }
-        )
-
-    except Exception as e:
-        logger.error('Unexpected error', exc_info=e)
-        raise HTTPException(status_code=500, detail={
-            'code': 500,
-            'message': '영양 성분 계산에 실패했습니다',
-        })
-
+    
 async def handle_openai_error(e):
     status_code = getattr(e, 'http_status', 500)
     error_type = getattr(e, 'error', {}).get('type')
     error_code = getattr(e, 'error', {}).get('code')
 
     if status_code == 400:
-        logger.error('Invalid request', exc_info=e)
-        raise HTTPException(status_code=500, detail={
-            'code': 500,
-            'message': '영양 성분 계산에 실패했습니다',
-        })
+        raise APIException(
+            code=500,
+            name="OpenAIError.InvalidRequest",
+            message="영양 성분 계산에 실패했습니다",
+            traceback=e
+        )
     elif status_code in [401, 403]:
         send_discord_alert(str(e))
-        logger.error('Authentication failed', exc_info=e)
-        raise HTTPException(status_code=500, detail={
-            'code': 500,
-            'message': '영양 성분 계산에 실패했습니다',
-        })
+        raise APIException(
+            code=500,
+            name="OpenAIError.AuthenticationFailed",
+            message="영양 성분 계산에 실패했습니다",
+            traceback=e
+        )
     elif status_code == 429:
         send_discord_alert(str(e))
-        logger.error('Token quota exceeded', exc_info=e)
         if error_type == 'tokens':
-            raise HTTPException(status_code=503, detail={
-                'code': 503,
-                'message': '현재 영양성분 분석이 불가능합니다.',
-            })
+            raise APIException(
+                code=503,
+                name="OpenAIError.TokenQuotaExceeded",
+                traceback=e,
+                message="현재 영양성분 분석이 불가능합니다"
+            )
     elif error_type == 'rate_limit_exceeded':
-        logger.error('Rate limit exceeded', exc_info=e)
-        raise HTTPException(status_code=503, detail={
-            'code': 503,
-            'message': '현재 영양성분 분석이 불가능합니다.',
-            })
+        raise APIException(
+            code=503,
+            name="OpenAIError.RateLimitExceeded",
+            traceback=e,
+            message="현재 영양성분 분석이 불가능합니다"
+        )
     elif status_code >= 500:
         send_discord_alert(str(e))
-        logger.error('>= 500 timeout', exc_info=e)
-        raise HTTPException(status_code=503, detail={
-            'code': 503,
-            'message': '현재 영양성분 분석이 불가능합니다.'
-        })
+        raise APIException(
+            code=503,
+            name="OpenAIError.Timeout",
+            traceback=e,
+            message="현재 영양성분 분석이 불가능합니다"
+        )
     elif error_code == 'context_length_exceeded':
-        logger.error('음식명 길이초과 에러', exc_info=e)
-        raise HTTPException(status_code=400, detail={
-            'code': 400,
-            'message': '입력값이 너무 깁니다'
-        })
+        raise APIException(
+            code=400,
+            name="OpenAIError.ContextLengthExceeded",
+            traceback=e,
+            message="입력값이 너무 깁니다"
+        )
     else:
-        raise HTTPException(status_code=500, detail={
-            'code': 500,
-            'message': '영양 성분 계산에 실패했습니다'
-        })
+        raise APIException(
+            code=500,
+            name="OpenAIError.UnexpectedException",
+            traceback=e,
+            message="영양 성분 계산에 실패했습니다"
+        )

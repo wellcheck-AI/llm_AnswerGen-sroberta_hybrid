@@ -1,15 +1,15 @@
 import os
 import re
 import json
+import traceback
 
 import httpx
-import asyncio
 import pandas as pd
 
 from openai import OpenAI
 
-from MealRecord import MealRecordError
 from .models import FoodNutrition
+from utils import APIException
 
 client = OpenAI()
 
@@ -47,71 +47,7 @@ SYSTEM_INSTRUCTION = """
 }
 """
 
-def generate_nutrition(food_name:str, unit:int, quantity:int | float) -> FoodNutrition:
-    unit_text = UNIT_MAPPING[unit]
-    user_input = f"음식명: {food_name}\n섭취량: {quantity} {unit_text}"
-
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_INSTRUCTION
-            },
-            {
-                "role": "user",
-                "content": user_input
-            }
-        ]
-    ).choices[0].message.content
-
-    if "None" in response or "null" in response:
-        raise MealRecordError.GenerationFailedError(food_name=food_name)
-    
-    json_match = re.search(r'{[\s\S]*?}', response)
-    if not json_match:
-        raise MealRecordError.ResponseParsingError(raw_response=response)
-
-    nutrition_data = json.loads(json_match.group())
-
-    def parse_nutrient_value(value):
-        if isinstance(value, str):
-            number = re.sub(r'[^\d.]', '', value)
-            return float(number)
-        elif isinstance(value, (int, float)):
-            return value
-        return float('nan')
-    
-    serving_size = parse_nutrient_value(nutrition_data.get('serving_size'))
-    carbohydrate = parse_nutrient_value(nutrition_data.get('carbohydrate'))
-    sugar = parse_nutrient_value(nutrition_data.get('sugar'))
-    dietary_fiber = parse_nutrient_value(nutrition_data.get('dietaryFiber'))
-    protein = parse_nutrient_value(nutrition_data.get('protein'))
-    fat = parse_nutrient_value(nutrition_data.get('fat'))
-    starch = parse_nutrient_value(nutrition_data.get('starch'))
-
-    generated_data = FoodNutrition(
-        food_name=food_name,
-        quantity=quantity, 
-        unit=unit,
-        serving_size=serving_size,
-        carbohydrate=carbohydrate,
-        sugar=sugar,
-        dietary_fiber=dietary_fiber,
-        protein=protein,
-        fat=fat,
-        starch=starch,
-        call_count=1
-    )
-
-    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float)) or pd.isna(x), 
-            [carbohydrate, sugar, dietary_fiber, protein, fat, starch])):
-        raise MealRecordError.NutritionError(nutrition=generated_data.json())
-    
-    return generated_data
-
-
-async def async_generate_nutrition(food_name: str, unit: int, quantity: int | float) -> FoodNutrition:
+async def generate_nutrition(food_name: str, unit: int, quantity: int | float) -> FoodNutrition:
     unit_text = UNIT_MAPPING[unit]
     user_input = f"음식명: {food_name}\n섭취량: {quantity} {unit_text}"
 
@@ -135,22 +71,38 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
 
     response = output.json()["choices"][0]["message"]["content"]
 
-    if "None" in response:
-        raise MealRecordError.GenerationFailedError(food_name=food_name)
-    
+    if "None" in response or "Null" in response:
+        raise APIException(
+            code=510,
+            name="GenerationFailedException",
+            message="AI가 계산하기 어려운 영양성분입니다",
+            gpt_output=response,
+        )
+
     json_match = re.search(r'{[\s\S]*?}', response)
     if not json_match:
-        raise MealRecordError.ResponseParsingError(raw_response=response)
+        raise APIException(
+            code=500,
+            name="ResponseParsingException",
+            message="영양 성분 계산에 실패했습니다",
+            gpt_output=response
+        )
 
     try:
         remove_annotation = re.sub(r'(//.*|#.*)', "", json_match.group())
         nutrition_data = json.loads(remove_annotation)
     except json.JSONDecodeError as e:
-        raise MealRecordError.ResponseParsingError(message=str(e), raw_response=remove_annotation)
-
+        raise APIException(
+            code=500,
+            name="ResponseParsingException",
+            message="영양 성분 계산에 실패했습니다",
+            traceback=traceback.format_exc(),
+            gpt_output=response
+        )
+    
     def parse_nutrient_value(value):
         if isinstance(value, str):
-            number = re.sub(r'[^\d.]', '', value)
+            number = re.sub(r'[^\d.]', '', value.replace(',', ''))
             return float(number)
         elif isinstance(value, (int, float)):
             return value
@@ -180,6 +132,11 @@ async def async_generate_nutrition(food_name: str, unit: int, quantity: int | fl
 
     if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float) or pd.isna(x)), 
             [carbohydrate, sugar, dietary_fiber, protein, fat, starch])):
-        raise MealRecordError.NutritionError(nutrition=generated_data.json(), response=output)
+        raise APIException(
+            code=510,
+            name="NutritionError",
+            gpt_output=response,
+            message="AI가 계산하기 어려운 영양성분입니다"
+        )
     
     return generated_data

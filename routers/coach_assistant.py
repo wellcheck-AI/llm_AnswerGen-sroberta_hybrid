@@ -1,111 +1,155 @@
 import os
+import uuid
+import json
 import traceback
 
+from datetime import datetime
+
+import pytz
 import openai
 import pinecone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response
-from pydantic import BaseModel
 from typing import List
 
 from CoachAssistant import (
     Document_,
     Chatbot_,
     PineconeIndexNameError,
-    PineconeUnexceptedException,
-    InvalidInputError
+    PineconeUnexceptedException
 )
-from utils.logger_setup import setup_logger
+from utils.log_schema import LogSchema, APIException
 from utils.alert import send_discord_alert, send_discord_alert_pinecone
+from utils.firebase_logger import request_log
 
-logger = setup_logger("coach_assistant_logger", "coach_assistant.log")
+LOGGER_NAME = "coach"
 
 document = Document_()
 llm = Chatbot_()
 
 router = APIRouter()
 
-class SummaryRequest(BaseModel):
-    query: str
-
-class ReferenceRequest(BaseModel):
-    query: str
-
-class ReferenceData(BaseModel):
-    index: str
-    keyword: List[str]
-    text: str
-
-    def __str__(self):
-        return self.text
-
-class AnswerRequest(BaseModel):
-    query: str
-    data: List[dict]
-
 @router.post("/summary/", response_model=dict)
-async def summarize(request:SummaryRequest):
+async def summarize(request:Request):
     try:
-        query = request.query
+        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".summary")
+
+        headers = dict(request.headers)
+
+        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            ip = request.client.host
+
+        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
+        method = "POST"
+
+        if "content-type" in headers:
+            _log_headers = {"content-type": headers["content-type"]}
+        else:
+            _log_headers = {}
+
+        raw_body = await request.body()
+        body_str = raw_body.decode()
+
+        body = json.loads(body_str)
+
+        query = body.get("query")
+
+        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            raise InvalidInputError(message="Empty query received in /summary")
-        
-        logger.info(f"API Request received - query: {query}")
+            raise APIException(
+                code=405,
+                name="InvalidInputException",
+                message="쿼리를 입력해주세요"
+            )
         
         summary = llm.summary(query)
+        response_data = {"summary": summary}
 
+        _log.set_response_log(response_data, status_code=200, message=None)
+        request_log(LOGGER_NAME + ".summary", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
         return {
             "status_code": 200, 
-            "data": [ { "summary": summary } ] 
+            "data": [ response_data ] 
         }
     
-    except InvalidInputError as e:
-        logger.warning(str(e))
-        raise HTTPException(
-            status_code=405,
-            detail={
-                "status_code": 405,
-                "error": "ValueError: Empty query",
-                "message": "쿼리를 입력해주세요."
-            }
+    except openai.APIError as e:
+        raise APIException(
+            code=403,
+            name="OpenaiApiKeyException",
+            message="현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요."
         )
     
-    except openai.APIError as e:
-        logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
+    except APIException as e:
+        e.log(_log)
+        request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
-            status_code=403,
+            status_code=e.code,
             detail={
-                "status_code": 403,
-                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}"
+                "status_code": e.code,
+                "message": e.message
             }
         )
-
+        
     except Exception as e:
-        logger.error(f"UnexpectedError in /summary: {traceback.format_exc()}")
+        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+        
+        request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
             status_code=500,
             detail={
                 "status_code": 500,
-                "message": "현재 AI 질문 요약이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"UnexpectedError in /summary: {e}"
+                "message": "알 수 없는 오류가 발생했습니다"
             }
         )
     
 @router.post("/reference/")
-async def reference(request:ReferenceRequest):
+async def reference(request:Request):
     try:
-        query = request.query
+        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".reference")
+
+        headers = dict(request.headers)
+
+        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            ip = request.client.host
+
+        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
+        method = "POST"
+
+        if "content-type" in headers:
+            _log_headers = {"content-type": headers["content-type"]}
+        else:
+            _log_headers = {}
+
+        raw_body = await request.body()
+        body_str = raw_body.decode()
+
+        body = json.loads(body_str)
+
+        query = body.get("query")
+
+        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            raise InvalidInputError(message="Empty query received in /reference")
+            raise APIException(
+                code=405,
+                name="InvalidInputException",
+                message="쿼리를 입력해주세요"
+            )
         
         context = document.find_match(query)
 
         if not all(list(zip(*context))[0]):
-            logger.info(f"No relevant documents found for query: {query}")
+            _log.set_response_log(None, 204, "쿼리와 관련된 문서가 없습니다")
+            request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
             return Response(status_code=204)
         
         reference = { "reference": [] }
@@ -118,132 +162,165 @@ async def reference(request:ReferenceRequest):
                 "image_url": c[3]
             })
 
+        resposne_data = reference
+
+        _log.set_response_log(resposne_data, 200, None)
+        request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
         return { 
             "status_code": 200,    
-            "data": [ reference ]
+            "data": [ resposne_data ]
         }
-    
-    except InvalidInputError as e:
-        logger.warning(str(e))
-        raise HTTPException(
-            status_code=405,
-            detail={
-                "status_code": 405,
-                "error": "ValueError: Empty query",
-                "message": "쿼리를 입력해주세요."
-            }
-        )
 
     except openai.APIError as e:
         send_discord_alert(str(e))
-        logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}"
-            }
+        raise APIException(
+            code=403,
+            name="OpenaiApiKeyError",
+            message="현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+            traceback=traceback.format_exc()
         )
     
     except pinecone.exceptions.PineconeApiException as e:
         send_discord_alert_pinecone(str(e))
-        logger.error(f"PineconeApiKeyError: Invalid Pinecone API Key: {os.environ.get('PINECONE_API_KEY')}")
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"PineconeApiKeyError: Invalid Pinecone API Key: {os.environ.get('PINECONE_API_KEY')}"
-            }
+        raise APIException(
+            code=403,
+            name="PineconeApiKeyError",
+            message="현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+            traceback=traceback.format_exc()
         )
 
     except PineconeIndexNameError as e:
         send_discord_alert_pinecone(str(e))
-        logger.error(f"PineconeIndexNameError: Pinecone index does not exist.")
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "status_code": 403,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"PineconeIndexNameError: Pinecone index does not exist."
-            }
+        raise APIException(
+            code=403,
+            name="PineconeIndexNameError",
+            message="현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+            traceback=traceback.format_exc()
         )
     
     except PineconeUnexceptedException as e:
         send_discord_alert_pinecone(str(e))
-        logger.error(f"PineconeUnexpectedError: {traceback.format_exc()}")
+        raise APIException(
+            code=500,
+            name="PineconeUnexceptedException",
+            message="현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+            traceback=traceback.format_exc()
+        )
+    
+    except APIException as e:
+        e.log(_log)
+        request_log(logger=LOGGER_NAME + ".reference", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
-            status_code=500,
+            status_code=e.code,
             detail={
-                "status_code": 500,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"PineconeUnexpectedError: {e}"
+                "code": e.code,
+                "message": e.message
             }
         )
-
+    
     except Exception as e:
-        logger.error(f"UnexpectedError in /reference: {traceback.format_exc()}")
+        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+        
+        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
             status_code=500,
             detail={
-                "status_code": 500,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"UnexpectedError in /reference: {e}"
+                "code": 500,
+                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요."
             }
         )
 
 @router.post("/answer/")
-async def answer(request: AnswerRequest):
+async def answer(request: Request):
     try:
-        query = request.query
-        reference_list = request.data[0]["reference"]
+        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".answer")
+
+        headers = dict(request.headers)
+
+        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            ip = request.client.host
+
+        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
+        method = "POST"
+
+        if "content-type" in headers:
+            _log_headers = {"content-type": headers["content-type"]}
+        else:
+            _log_headers = {}
+
+        raw_body = await request.body()
+        body_str = raw_body.decode()
+
+        body = json.loads(body_str)
+
+        query = body.get("query")
+        
+        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            raise InvalidInputError("Empty query received in /reference")
+            raise APIException(
+                code=405,
+                name="InvalidInputException",
+                message="쿼리를 입력해주세요"
+            )
         
-        #reference_list = [ref["reference"] for ref in reference_list]
-        context = document.context_to_string(reference_list, query)
+        try:
+            reference_list = body.get("data")[0]["reference"]
+            context = document.context_to_string(reference_list, query)
+        except Exception as e:
+            raise APIException(
+                code=405,
+                name="InvalidInputException",
+                message=f"잘못된 reference 입력입니다.\n{body}",
+                traceback=traceback.format_exc()
+            )
 
         if not context:
             context = ["참고문서는 없으니 너가 아는 정보로 대답해줘."]
         
         answer = llm.getConversation_prompttemplate(query=query, reference=context)
-
+        response_data = {"answer": answer}
+        
+        _log.set_response_log(response_data, status_code=200, message=None)
+        request_log(LOGGER_NAME + ".answer", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+        
         return { 
             "status_code": 200,
-            "data": [ { "answer": answer } ] 
+            "data": [ response_data ] 
         }
-    
-    except InvalidInputError as e:
-        logger.warning(str(e))
-        raise HTTPException(
-            status_code=405,
-            detail={
-                "status_code": 405,
-                "error": "ValueError: Empty query",
-                "message": "쿼리를 입력해주세요."
-            }
-        )
 
     except openai.APIError as e:
-        logger.error(f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}")
+        raise APIException(
+            code=403,
+            name="OpenaiApiKeyError",
+            message="현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.",
+            traceback=traceback.format_exc()
+        )
+    
+    except APIException as e:
+        e.log(_log)
+        request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
-            status_code=403,
+            status_code=e.code,
             detail={
-                "status_code": 403,
-                "message": "현재 AI 답변 추천이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"OpenaiApiKeyError: Invalid OpenAI API Key: {os.environ.get('OPENAI_API_KEY')}"
+                "status_code": e.code,
+                "message": e.message
             }
         )
     
     except Exception as e:
-        logger.error(f"UnexpectedError in /answer: {traceback.format_exc()}")
+        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+        
+        request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
         raise HTTPException(
             status_code=500,
             detail={
                 "status_code": 500,
-                "message": "현재 AI 답변 가이드 검색이 어렵습니다. 잠시 후에 다시 사용해주세요.",
-                "error": f"UnexpectedError in /answer: {e}"
+                "message": "알 수 없는 오류가 발생했습니다"
             }
         )
