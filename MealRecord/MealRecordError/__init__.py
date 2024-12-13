@@ -7,7 +7,6 @@ from .generate_exceptions import (
 )
 
 __all__ = [
-    "InvalidAPIKeyError",
     "NutritionError",
     "ResponseParsingError",
     "GenerationFailedError",
