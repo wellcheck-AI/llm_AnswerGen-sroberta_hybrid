@@ -21,7 +21,7 @@ from MealRecord import (
     FoodNutrition
 )
 from utils.alert import send_discord_alert
-from utils.log_schema import LogSchema, APIException
+from utils.log_schema import LogSchema, APIException, log_custom_error
 from utils.firebase_logger import request_log
 
 API_KEY = os.environ.get("API_KEY") #API service key
@@ -60,8 +60,7 @@ async def nutrition(
         _log.set_request_log(body, ip, method, _log_headers, request_time)
 
         if not provided_api_key or provided_api_key != API_KEY:
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -75,8 +74,7 @@ async def nutrition(
         unit = body.get("unit", -1)
         
         if not food_name.strip():
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -89,8 +87,7 @@ async def nutrition(
         special_chars_only = re.compile(r'^[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>/?]+$') # 안걸러짐 (ex: ×÷=/_[]-'; / `~\€£¥°•○●□■♤♡◇♧☆▪︎¤《》¡¿)
 
         if special_chars_only.match(food_name_trimmed):
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -99,8 +96,7 @@ async def nutrition(
                 traceback=location
             )
         if len(food_name_trimmed) > 255:
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -109,8 +105,7 @@ async def nutrition(
                 traceback=location
             )
         if not quantity or quantity <= 0 or not isinstance(quantity, (int, float)):
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -119,8 +114,7 @@ async def nutrition(
                 traceback=location
             )
         if unit is None:
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,
@@ -129,8 +123,7 @@ async def nutrition(
                 traceback=location
             )
         if not isinstance(unit, int) or unit < 0 or unit > 4:
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=400,

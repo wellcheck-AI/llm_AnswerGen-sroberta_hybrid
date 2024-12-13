@@ -1,3 +1,5 @@
+import traceback
+
 from datetime import datetime
 
 import pytz
@@ -77,3 +79,11 @@ class APIException(Exception):
     def log(self, log_data: LogSchema):
         log_data.set_error_log(self.name, self.traceback, self.gpt_output)
         log_data.set_response_log(content=None, status_code=self.code, message=self.message)
+
+def log_custom_error():
+    stack_info = traceback.extract_stack()[:-1]
+    for frame in reversed(stack_info):
+        if "site-packages" not in frame.filename:
+            location = f"{frame.filename}:{frame.lineno}"
+            return location
+    return "Unknown location"

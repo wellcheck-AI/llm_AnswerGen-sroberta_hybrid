@@ -19,7 +19,7 @@ from CoachAssistant import (
     PineconeIndexNameError,
     PineconeUnexceptedException
 )
-from utils.log_schema import LogSchema, APIException
+from utils.log_schema import LogSchema, APIException, log_custom_error
 from utils.alert import send_discord_alert, send_discord_alert_pinecone
 from utils.firebase_logger import request_log
 
@@ -61,8 +61,7 @@ async def summarize(request:Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=405,
@@ -168,8 +167,7 @@ async def reference(request:Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=405,
@@ -323,8 +321,7 @@ async def answer(request: Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
-            stack_info = traceback.extract_stack()[-2]
-            location = f"{stack_info.filename}:{stack_info.lineno}"
+            location = log_custom_error()
 
             raise APIException(
                 code=405,
