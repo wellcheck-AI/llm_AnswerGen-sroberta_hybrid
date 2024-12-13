@@ -50,13 +50,11 @@ async def nutrition(
         _log.set_request_log(body, request)
 
         if not provided_api_key or provided_api_key != API_KEY:
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidAPIKeyException",
                 message="API 키가 유효하지 않습니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         food_name = body.get("foodName")
@@ -64,62 +62,50 @@ async def nutrition(
         unit = body.get("unit", -1)
         
         if not food_name.strip():
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="음식명이 없습니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         food_name_trimmed = food_name.strip()
         special_chars_only = re.compile(r'^[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>/?]+$') # 안걸러짐 (ex: ×÷=/_[]-'; / `~\€£¥°•○●□■♤♡◇♧☆▪︎¤《》¡¿)
 
         if special_chars_only.match(food_name_trimmed):
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="올바른 음식명이 아닙니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         if len(food_name_trimmed) > 255:
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="음식명이 너무 깁니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         if not quantity or quantity <= 0 or not isinstance(quantity, (int, float)):
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="섭취량이 없습니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         if unit is None:
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="섭취량 단위가 없습니다",
-                traceback=location
+                traceback=log_custom_error()
             )
         if not isinstance(unit, int) or unit < 0 or unit > 4:
-            location = log_custom_error()
-
             raise APIException(
                 code=400,
                 name="InvalidInputException",
                 message="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         response_content = {}

@@ -45,13 +45,11 @@ async def summarize(request:Request):
         _log.set_request_log({"query": query}, request)
         
         if not query.strip():
-            location = log_custom_error()
-
             raise APIException(
                 code=405,
                 name="InvalidInputException",
                 message="쿼리를 입력해주세요",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         summary = llm.summary(query)
@@ -135,13 +133,11 @@ async def reference(request:Request):
         _log.set_request_log({"query": query}, request)
         
         if not query.strip():
-            location = log_custom_error()
-
             raise APIException(
                 code=405,
                 name="InvalidInputException",
                 message="쿼리를 입력해주세요",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         context = document.find_match(query)
@@ -273,13 +269,11 @@ async def answer(request: Request):
         _log.set_request_log({"query": query}, request)
         
         if not query.strip():
-            location = log_custom_error()
-
             raise APIException(
                 code=405,
                 name="InvalidInputException",
                 message="쿼리를 입력해주세요",
-                traceback=location
+                traceback=log_custom_error()
             )
         
         try:
