@@ -4,6 +4,8 @@ from datetime import datetime
 
 import pytz
 
+from fastapi import Request
+
 class LogSchema:
     def __init__(self, _id:str, logger:str):
         self._payload = {
@@ -19,13 +21,26 @@ class LogSchema:
             }
         }
     
-    def set_request_log(self, req:dict, ip:str, method:str, headers:dict, timestamp:datetime|str) -> None:
+    def set_request_log(self, body:dict, request:Request) -> None:
+        headers = dict(request.headers)
+        
+        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
+        if x_forwarded_for:
+            ip = x_forwarded_for.split(",")[0].strip()
+        else:
+            ip = request.client.host
+
+        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
+        _log_headers = {key:headers[key] for key in ["x-api-key", "content-type"] if key in headers}
+
+        method = "POST"
+
         self._payload["request"] = {
-            "request_data": req,
+            "request_data": body,
             "ip": ip,
             "method": method,
-            "headers": headers,
-            "timestamp": timestamp
+            "headers": _log_headers,
+            "timestamp": request_time
         }
     
     def set_response_log(self, content:dict, status_code:int, message:str|None) -> None:

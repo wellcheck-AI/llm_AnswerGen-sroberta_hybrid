@@ -40,15 +40,6 @@ async def nutrition(
 
         headers = dict(request.headers)
 
-        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0].strip()
-        else:
-            ip = request.client.host
-        
-        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
-        method = "POST"
-
         provided_api_key = headers.get("x-api-key")
 
         raw_body = await request.body()
@@ -56,8 +47,7 @@ async def nutrition(
 
         body = json.loads(body_str)
 
-        _log_headers = {key:headers[key] for key in ["x-api-key", "content-type"] if key in headers}
-        _log.set_request_log(body, ip, method, _log_headers, request_time)
+        _log.set_request_log(body, request)
 
         if not provided_api_key or provided_api_key != API_KEY:
             location = log_custom_error()

@@ -35,22 +35,6 @@ async def summarize(request:Request):
     try:
         _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".summary")
 
-        headers = dict(request.headers)
-
-        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0].strip()
-        else:
-            ip = request.client.host
-
-        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
-        method = "POST"
-
-        if "content-type" in headers:
-            _log_headers = {"content-type": headers["content-type"]}
-        else:
-            _log_headers = {}
-
         raw_body = await request.body()
         body_str = raw_body.decode()
 
@@ -58,7 +42,7 @@ async def summarize(request:Request):
 
         query = body.get("query")
 
-        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
+        _log.set_request_log({"query": query}, request)
         
         if not query.strip():
             location = log_custom_error()
@@ -141,22 +125,6 @@ async def reference(request:Request):
     try:
         _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".reference")
 
-        headers = dict(request.headers)
-
-        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0].strip()
-        else:
-            ip = request.client.host
-
-        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
-        method = "POST"
-
-        if "content-type" in headers:
-            _log_headers = {"content-type": headers["content-type"]}
-        else:
-            _log_headers = {}
-
         raw_body = await request.body()
         body_str = raw_body.decode()
 
@@ -164,7 +132,7 @@ async def reference(request:Request):
 
         query = body.get("query")
 
-        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
+        _log.set_request_log({"query": query}, request)
         
         if not query.strip():
             location = log_custom_error()
@@ -295,22 +263,6 @@ async def answer(request: Request):
     try:
         _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".answer")
 
-        headers = dict(request.headers)
-
-        x_forwarded_for = headers.get("x-forwarded-for") # 리버스 프록시 뒤에 있는 경우
-        if x_forwarded_for:
-            ip = x_forwarded_for.split(",")[0].strip()
-        else:
-            ip = request.client.host
-
-        request_time = datetime.now(pytz.timezone('Asia/Seoul'))
-        method = "POST"
-
-        if "content-type" in headers:
-            _log_headers = {"content-type": headers["content-type"]}
-        else:
-            _log_headers = {}
-
         raw_body = await request.body()
         body_str = raw_body.decode()
 
@@ -318,7 +270,7 @@ async def answer(request: Request):
 
         query = body.get("query")
         
-        _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
+        _log.set_request_log({"query": query}, request)
         
         if not query.strip():
             location = log_custom_error()
