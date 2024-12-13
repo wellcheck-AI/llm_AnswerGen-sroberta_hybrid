@@ -10,7 +10,7 @@ import openai
 import pinecone
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, JSONResponse
 from typing import List
 
 from CoachAssistant import (
@@ -61,21 +61,42 @@ async def summarize(request:Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=405,
                 name="InvalidInputException",
-                message="쿼리를 입력해주세요"
+                message="쿼리를 입력해주세요",
+                traceback=location
             )
         
         summary = llm.summary(query)
         response_data = {"summary": summary}
 
-        _log.set_response_log(response_data, status_code=200, message=None)
-        request_log(LOGGER_NAME + ".summary", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
-        return {
-            "status_code": 200, 
-            "data": [ response_data ] 
-        }
+        try:
+            status_code = 200
+            message = None
+            
+            return JSONResponse(status_code=status_code, content={"status_code": status_code, "data": [response_data]})
+        except:
+            status_code = 500
+            message = "알 수 없는 오류가 발생했습니다"
+
+            raise APIException(
+                code=status_code,
+                name="UnexpectedException",
+                message=message,
+                gpt_output=summary,
+                traceback=traceback.format_exc()
+            )
+        finally:
+            if status_code == 200:
+                try:
+                    _log.set_response_log(response_data, status_code=status_code, message=message)
+                    request_log(LOGGER_NAME + ".summary", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+                except Exception as log_exception:
+                    pass
     
     except openai.APIError as e:
         raise APIException(
@@ -85,8 +106,12 @@ async def summarize(request:Request):
         )
     
     except APIException as e:
-        e.log(_log)
-        request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            e.log(_log)
+            request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=e.code,
             detail={
@@ -96,10 +121,14 @@ async def summarize(request:Request):
         )
         
     except Exception as e:
-        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
-        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
-        
-        request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+            _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+            
+            request_log(logger=LOGGER_NAME + ".summary", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=500,
             detail={
@@ -139,17 +168,24 @@ async def reference(request:Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=405,
                 name="InvalidInputException",
-                message="쿼리를 입력해주세요"
+                message="쿼리를 입력해주세요",
+                traceback=location
             )
         
         context = document.find_match(query)
 
         if not all(list(zip(*context))[0]):
-            _log.set_response_log(None, 204, "쿼리와 관련된 문서가 없습니다")
-            request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+            try:
+                _log.set_response_log(None, 204, "쿼리와 관련된 문서가 없습니다")
+                request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+            except Exception as log_exception:
+                pass
             return Response(status_code=204)
         
         reference = { "reference": [] }
@@ -164,12 +200,29 @@ async def reference(request:Request):
 
         resposne_data = reference
 
-        _log.set_response_log(resposne_data, 200, None)
-        request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
-        return { 
-            "status_code": 200,    
-            "data": [ resposne_data ]
-        }
+        try:
+            status_code = 200
+            message = None
+            
+            return JSONResponse(status_code=status_code, content={"status_code": status_code, "data": [resposne_data]})
+        except:
+            status_code = 500
+            message = "알 수 없는 오류가 발생했습니다"
+
+            raise APIException(
+                code=status_code,
+                name="UnexpectedException",
+                message=message,
+                gpt_output=resposne_data,
+                traceback=traceback.format_exc()
+            )
+        finally:
+            if status_code == 200:
+                try:
+                    _log.set_response_log(resposne_data, status_code, message)
+                    request_log(LOGGER_NAME + ".reference", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+                except Exception as log_exception:
+                    pass
 
     except openai.APIError as e:
         send_discord_alert(str(e))
@@ -208,8 +261,12 @@ async def reference(request:Request):
         )
     
     except APIException as e:
-        e.log(_log)
-        request_log(logger=LOGGER_NAME + ".reference", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            e.log(_log)
+            request_log(logger=LOGGER_NAME + ".reference", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=e.code,
             detail={
@@ -219,10 +276,14 @@ async def reference(request:Request):
         )
     
     except Exception as e:
-        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
-        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
-        
-        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+            _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+            
+            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=500,
             detail={
@@ -262,10 +323,14 @@ async def answer(request: Request):
         _log.set_request_log({"query": query}, ip, method, _log_headers, request_time)
         
         if not query.strip():
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=405,
                 name="InvalidInputException",
-                message="쿼리를 입력해주세요"
+                message="쿼리를 입력해주세요",
+                traceback=location
             )
         
         try:
@@ -285,13 +350,29 @@ async def answer(request: Request):
         answer = llm.getConversation_prompttemplate(query=query, reference=context)
         response_data = {"answer": answer}
         
-        _log.set_response_log(response_data, status_code=200, message=None)
-        request_log(LOGGER_NAME + ".answer", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
-        
-        return { 
-            "status_code": 200,
-            "data": [ response_data ] 
-        }
+        try:
+            status_code = 200
+            message = None
+
+            return JSONResponse(status_code=status_code, content={"status_code": status_code, "data": [response_data]})
+        except:
+            status_code = 500
+            message = "알 수 없는 오류가 발생했습니다"
+            
+            raise APIException(
+                code=status_code,
+                name="UnexpectedError",
+                message=message,
+                gpt_output=answer,
+                traceback=traceback.format_exc()
+            )
+        finally:
+            if status_code == 200:
+                try:
+                    _log.set_response_log(response_data, status_code=status_code, message=message)
+                    request_log(LOGGER_NAME + ".answer", _log.get_request_log(), _log.get_reseponse_log(), _log.get_error_log())
+                except Exception as log_exception:
+                    pass
 
     except openai.APIError as e:
         raise APIException(
@@ -302,8 +383,12 @@ async def answer(request: Request):
         )
     
     except APIException as e:
-        e.log(_log)
-        request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            e.log(_log)
+            request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=e.code,
             detail={
@@ -313,10 +398,14 @@ async def answer(request: Request):
         )
     
     except Exception as e:
-        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
-        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
-        
-        request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+            _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+            
+            request_log(logger=LOGGER_NAME + ".answer", request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=500,
             detail={

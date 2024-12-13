@@ -4,7 +4,6 @@ import json
 import traceback
 
 import httpx
-import pandas as pd
 
 from openai import OpenAI
 
@@ -71,21 +70,29 @@ async def generate_nutrition(food_name: str, unit: int, quantity: int | float) -
 
     response = output.json()["choices"][0]["message"]["content"]
 
-    if "None" in response or "Null" in response:
+    if re.search(r'[Nn]one', response) or re.search(r'[Nn]ull', response):
+        stack_info = traceback.extract_stack()[-2]
+        location = f"{stack_info.filename}:{stack_info.lineno}"
+
         raise APIException(
             code=510,
             name="GenerationFailedException",
             message="AI가 계산하기 어려운 영양성분입니다",
             gpt_output=response,
+            traceback=location
         )
 
     json_match = re.search(r'{[\s\S]*?}', response)
     if not json_match:
+        stack_info = traceback.extract_stack()[-2]
+        location = f"{stack_info.filename}:{stack_info.lineno}"
+
         raise APIException(
             code=500,
             name="ResponseParsingException",
             message="영양 성분 계산에 실패했습니다",
-            gpt_output=response
+            gpt_output=response,
+            traceback=location
         )
 
     try:
@@ -130,13 +137,16 @@ async def generate_nutrition(food_name: str, unit: int, quantity: int | float) -
         call_count=1
     )
 
-    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float) or pd.isna(x)), 
+    if any(map(lambda x: x is None or x < 0 or not isinstance(x, (int, float) or x in [float('inf'), float('-inf'), float('nan')]), 
             [carbohydrate, sugar, dietary_fiber, protein, fat, starch])):
+        stack_info = traceback.extract_stack()[-2]
+        location = f"{stack_info.filename}:{stack_info.lineno}"
+
         raise APIException(
             code=510,
             name="NutritionError",
             gpt_output=response,
-            message="AI가 계산하기 어려운 영양성분입니다"
+            message="AI가 계산하기 어려운 영양성분입니다",
+            traceback=location
         )
-    
     return generated_data

@@ -60,10 +60,14 @@ async def nutrition(
         _log.set_request_log(body, ip, method, _log_headers, request_time)
 
         if not provided_api_key or provided_api_key != API_KEY:
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidAPIKeyException",
-                message="API 키가 유효하지 않습니다"
+                message="API 키가 유효하지 않습니다",
+                traceback=location
             )
         
         food_name = body.get("foodName")
@@ -71,44 +75,68 @@ async def nutrition(
         unit = body.get("unit", -1)
         
         if not food_name.strip():
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="음식명이 없습니다"
+                message="음식명이 없습니다",
+                traceback=location
             )
         
         food_name_trimmed = food_name.strip()
-        special_chars_only = re.compile(r'^[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>/?]+$')
+        special_chars_only = re.compile(r'^[!@#$%^&*()_+\-=\[\]{};\'":\\|,.<>/?]+$') # 안걸러짐 (ex: ×÷=/_[]-'; / `~\€£¥°•○●□■♤♡◇♧☆▪︎¤《》¡¿)
 
         if special_chars_only.match(food_name_trimmed):
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="올바른 음식명이 아닙니다"
+                message="올바른 음식명이 아닙니다",
+                traceback=location
             )
         if len(food_name_trimmed) > 255:
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="음식명이 너무 깁니다"
+                message="음식명이 너무 깁니다",
+                traceback=location
             )
         if not quantity or quantity <= 0 or not isinstance(quantity, (int, float)):
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="섭취량이 없습니다"
+                message="섭취량이 없습니다",
+                traceback=location
             )
         if unit is None:
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="섭취량 단위가 없습니다"
+                message="섭취량 단위가 없습니다",
+                traceback=location
             )
         if not isinstance(unit, int) or unit < 0 or unit > 4:
+            stack_info = traceback.extract_stack()[-2]
+            location = f"{stack_info.filename}:{stack_info.lineno}"
+
             raise APIException(
                 code=400,
                 name="InvalidInputException",
-                message="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)"
+                message="올바르지 않은 섭취량 단위입니다 (0: 인분, 1: 개, 2: 접시, 3: g, 4: ml)",
+                traceback=location
             )
         
         response_content = {}
@@ -146,10 +174,28 @@ async def nutrition(
             
             response_data = {key: value for key, value in response_content.items() if key != "nutrition"}
             response_data.update(response_content.get("nutrition", {}))
-            
-            _log.set_response_log(content=response_content, status_code=200, message="Returning cached nutrition data")
-            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-            return JSONResponse(status_code=200, content=response_data)
+
+            try:
+                status_code = 200
+                message = "Returning cached nutrition data"
+                return JSONResponse(status_code=status_code, content=response_data)
+            except Exception as e:
+                status_code = 500
+                message = "알 수 없는 오류가 발생했습니다"
+                raise APIException(
+                    code=status_code,
+                    name="UnexpectedException",
+                    message="알 수 없는 오류가 발생했습니다",
+                    gpt_output=response_data,
+                    traceback=traceback.format_exc()
+                )
+            finally:
+                if status_code == 200:
+                    try:
+                        _log.set_response_log(content=response_content, status_code=status_code, message=message)
+                        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+                    except Exception as log_exception:
+                        pass
         
         new_record = await generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
 
@@ -161,16 +207,38 @@ async def nutrition(
         response_data = {key: value for key, value in response_content.items() if key != "nutrition"}
         response_data.update(response_content.get("nutrition", {}))
         
-        _log.set_response_log(content=response_content, status_code=201, message="Nutrition data saved to database")
-        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-        return JSONResponse(status_code=201, content=response_data)
+        try:
+            status_code = 201
+            message = "Nutrition data saved to database"
+            return JSONResponse(status_code=status_code, content=response_data)
+        except Exception as e:
+            status_code = 500
+            message = "알 수 없는 오류가 발생했습니다"
+            raise APIException(
+                code=status_code,
+                name="UnexpectedException",
+                message=message,
+                gpt_output=response_data,
+                traceback=traceback.format_exc()
+                )
+        finally:
+            try:
+                if status_code == 201:
+                    _log.set_response_log(content=response_content, status_code=status_code, message=message)
+                    request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+            except Exception as log_exception:
+                pass
     
     except openai.OpenAIError as e:
         await handle_openai_error(e)
     
     except APIException as e:
-        e.log(_log)
-        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            e.log(_log)
+            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=e.code,
             detail={
@@ -180,10 +248,14 @@ async def nutrition(
         )
     
     except Exception as e:
-        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
-        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
-        
-        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        try:
+            _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+            _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
+            
+            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
         raise HTTPException(
             status_code=500,
             detail={
@@ -191,7 +263,6 @@ async def nutrition(
                 "message": "알 수 없는 오류가 발생했습니다"
             }
         )
-    
     
 async def handle_openai_error(e):
     status_code = getattr(e, 'http_status', 500)
