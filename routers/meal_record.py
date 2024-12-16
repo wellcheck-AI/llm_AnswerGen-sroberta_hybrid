@@ -145,26 +145,16 @@ async def nutrition(
             response_data.update(response_content.get("nutrition", {}))
 
             try:
-                status_code = 200
-                message = "Returning cached nutrition data"
-                return JSONResponse(status_code=status_code, content=response_data)
+                _log.set_response_log(content=response_content, status_code=200, message="Returning cached nutrition data")
+                return JSONResponse(status_code=200, content=response_data)
             except Exception as e:
-                status_code = 500
-                message = "알 수 없는 오류가 발생했습니다"
                 raise APIException(
-                    code=status_code,
+                    code=500,
                     name="UnexpectedException",
-                    message="알 수 없는 오류가 발생했습니다",
+                    message="결과 반환 중 알 수 없는 오류가 발생했습니다",
                     gpt_output=response_data,
                     traceback=traceback.format_exc()
                 )
-            finally:
-                if status_code == 200:
-                    try:
-                        _log.set_response_log(content=response_content, status_code=status_code, message=message)
-                        request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-                    except Exception as log_exception:
-                        pass
         
         new_record = await generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
 
@@ -177,36 +167,22 @@ async def nutrition(
         response_data.update(response_content.get("nutrition", {}))
         
         try:
-            status_code = 201
-            message = "Nutrition data saved to database"
-            return JSONResponse(status_code=status_code, content=response_data)
+            _log.set_response_log(content=response_content, status_code=201, message="Nutrition data saved to database")
+            return JSONResponse(status_code=201, content=response_data)
         except Exception as e:
-            status_code = 500
-            message = "알 수 없는 오류가 발생했습니다"
             raise APIException(
-                code=status_code,
+                code=500,
                 name="UnexpectedException",
-                message=message,
+                message="결과 반환 중 알 수 없는 오류가 발생했습니다",
                 gpt_output=response_data,
                 traceback=traceback.format_exc()
                 )
-        finally:
-            try:
-                if status_code == 201:
-                    _log.set_response_log(content=response_content, status_code=status_code, message=message)
-                    request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-            except Exception as log_exception:
-                pass
     
     except openai.OpenAIError as e:
         await handle_openai_error(e)
     
     except APIException as e:
-        try:
-            e.log(_log)
-            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-        except Exception as log_exception:
-            pass
+        e.log(_log)
 
         raise HTTPException(
             status_code=e.code,
@@ -217,13 +193,8 @@ async def nutrition(
         )
     
     except Exception as e:
-        try:
-            _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
-            _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
-            
-            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
-        except Exception as log_exception:
-            pass
+        _log.set_error_log("UnexpectedException", traceback=traceback.format_exc(), generated=None)
+        _log.set_response_log(None, 500, "알 수 없는 오류가 발생했습니다")
 
         raise HTTPException(
             status_code=500,
@@ -233,6 +204,12 @@ async def nutrition(
             }
         )
     
+    finally:
+        try:
+            request_log(logger=LOGGER_NAME, request_data=_log.get_request_log(), response_data=_log.get_reseponse_log(), error=_log.get_error_log())
+        except Exception as log_exception:
+            pass
+
 async def handle_openai_error(e):
     status_code = getattr(e, 'http_status', 500)
     error_type = getattr(e, 'error', {}).get('type')
