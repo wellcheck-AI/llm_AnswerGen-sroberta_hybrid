@@ -36,7 +36,7 @@ async def nutrition(
         db: AsyncSession = Depends(get_db)
     ):
     try:
-        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME)
+        _log = LogSchema(_id=str(uuid.uuid4()), logger=LOGGER_NAME + ".nutrition")
 
         headers = dict(request.headers)
 
@@ -157,6 +157,15 @@ async def nutrition(
                 )
         
         new_record = await generate_nutrition(food_name=food_name, unit=unit, quantity=quantity)
+
+        if any(v > 999.9 for v in [new_record.carbohydrate, new_record.fat, new_record.protein]) or any(v > 99.9 for v in [new_record.sugar, new_record.dietary_fiber]):
+            raise APIException(
+                code=510,
+                name="GenerationFailedException",
+                message="영양성분의 최댓값을 초과했습니다",
+                gpt_output=json.dumps(new_record.json(), ensure_ascii=False),
+                traceback=log_custom_error()
+            )
 
         db.add(new_record)
         await db.commit()
