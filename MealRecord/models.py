@@ -43,10 +43,12 @@ class FoodNutrition(Base):
             "quantity": self.quantity,
             "unit": self.unit,
             "serving_size": self.serving_size,
-            "carbohydrate": self.carbohydrate,
-            "sugar": self.sugar,
-            "dietaryFiber": self.dietary_fiber,
-            "protein": self.protein,
-            "fat": self.fat,
-            "starch": self.starch
+            "nutrition":{
+                "carbohydrate": self.carbohydrate,
+                "sugar": self.sugar,
+                "dietaryFiber": self.dietary_fiber,
+                "protein": self.protein,
+                "fat": self.fat,
+                "starch": self.starch
+            }
         }
