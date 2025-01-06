@@ -6,6 +6,7 @@ load_dotenv(override=True)
 
 from routers.coach_assistant import router as coach_assistant_router
 from routers.meal_record import router as meal_record_router
+from routers.test_stage import router as test_stage_router
 
 app = FastAPI(
     title="Coach Assistant Chatbot API",
@@ -24,6 +25,7 @@ app.add_middleware(
 
 app.include_router(coach_assistant_router, prefix="/api/coach", tags=["Chatbot API"])
 app.include_router(meal_record_router, prefix="/api/gen", tags=["Generate nutritions API"])
+app.include_router(test_stage_router, prefix="/test-stage", tags=["test-stage"])
 
 from prometheus_fastapi_instrumentator import Instrumentator
 Instrumentator().instrument(app).expose(app)
